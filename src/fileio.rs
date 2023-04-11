@@ -5,7 +5,7 @@ pub mod readers {
         io::{BufRead, BufReader, Read},
     };
 
-    use chacha20poly1305::aead::rand_core::le;
+    
 
     pub struct FileReader {
         buf_reader: BufReader<File>,
@@ -60,16 +60,15 @@ pub mod readers {
             if !self.has_more {
                 return Option::None;
             }
-            let mut lengthBytes = [0; 4];
-            let count = self.file.read(&mut lengthBytes).unwrap();
+            let mut length_bytes = [0; 4];
+            let count = self.file.read(&mut length_bytes).unwrap();
             if count == 0 {
                 self.has_more = false;
                 return Option::None;
             }
-            let length: u32 = u32::from_be_bytes(lengthBytes);
+            let length: u32 = u32::from_be_bytes(length_bytes);
             let mut buffer = Self::new_buffer(length);
             self.file.read_exact(&mut buffer).unwrap();
-            print!("{:?}",buffer);
             return Option::Some(buffer);
         }
 
@@ -138,11 +137,11 @@ pub mod writer {
             let length = data.len();
             let len32:u32 = length.try_into().unwrap();
             let length_bytes = len32.to_be_bytes();
-            self.writeInternal(length_bytes.to_vec());
-            self.writeInternal(data);
+            self.write_internal(length_bytes.to_vec());
+            self.write_internal(data);
         }
 
-        fn writeInternal(&mut self, data: Vec<u8>) {
+        fn write_internal(&mut self, data: Vec<u8>) {
             match self.buf_writer.write(&data) {
                 Ok(_) => (),
                 Err(_) => panic!("Failed to write bytes"),

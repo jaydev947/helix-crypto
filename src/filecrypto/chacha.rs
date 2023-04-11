@@ -13,7 +13,7 @@ pub mod encryptors{
         }
     }
 
-    const CAP: u32 = 1024 * 1024 * 64;
+    const CAP: u32 = 1024 * 1024 * 2;
     
     impl<'a> FileEncryptor for CCFileEncryptor<'a> {
 
@@ -76,12 +76,16 @@ pub mod decryptors{
             let key = Key::new();
             let encryptor = CCFileEncryptor::from(&key);
             // let source = String::from("D:\\Other\\Badhaai Do (2022) [1080p] [WEBRip] [5.1] [YTS.MX]\\Badhaai.Do.2022.1080p.WEBRip.x264.AAC5.1-[YTS.MX].mp4");
-            let source = String::from("D:\\test\\1.txt");
-            let dest = String::from("D:\\test\\1enc");
+            let source = String::from("D:\\test\\19mb.pdf");
+            // let source = String::from("D:\\test\\1.txt");
+            let dest = String::from("D:\\test\\1enc3");
+            print!("encrypting");
             encryptor.encrypt(source, dest);
             let decryptor = CCFileDecryptor::from(&key);
-            let dec_source = String::from("D:\\test\\1enc");
-            let dec_dest = String::from("D:\\test\\1dec.txt");
+            let dec_source = String::from("D:\\test\\1enc3");
+            let dec_dest = String::from("D:\\test\\dec.pdf");
+            // let dec_dest = String::from("D:\\test\\1dec.txt");
+            print!("decrypting");
             decryptor.decrypt(dec_source,dec_dest);
             print!("done")
         }

@@ -45,11 +45,9 @@ pub mod encryptors {
 
     impl ByteEncryptor for ByteEncryptorImpl<'_> {
         fn encrypt(&self, buffer: &mut Vec<u8>) {
-            println!("before enc : {:?}",buffer);
             self.cipher
                 .encrypt_in_place(&self.key.nonce, b"", buffer)
                 .unwrap();
-                print!("after enc : {:?}",buffer);
         }
     }
 }
@@ -80,11 +78,9 @@ pub mod decryptors {
 
     impl ByteDecryptor for ByteDecryptorImpl<'_> {
         fn decrypt(&self, buffer: &mut Vec<u8>) {
-            println!("before dec : {:?}",buffer);
             self.cipher
                 .decrypt_in_place(&self.key.nonce, b"", buffer)
                 .unwrap();
-            print!("after dec : {:?}",buffer);
         }
     }
 }
