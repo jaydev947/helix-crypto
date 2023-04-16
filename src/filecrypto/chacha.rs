@@ -1,6 +1,6 @@
 pub mod encryptors{
     use crate::{
-        crypto::{chacha::{encryptors::ByteEncryptorImpl, keys::Key}, ByteEncryptor}, fileio::{readers::FileReader, writer::{FileWriter, ChunkWriter}}, filecrypto::FileEncryptor,
+        crypto::{chacha::{encryptors::ByteEncryptorImpl, keys::Key}, ByteEncryptor}, fileio::{readers::FileReader, writers::{FileWriter, ChunkWriter}}, filecrypto::FileEncryptor,
     };
     
     pub struct CCFileEncryptor<'a> {
@@ -36,7 +36,7 @@ pub mod encryptors{
 pub mod decryptors{
 
     use crate::{
-        crypto::{chacha::{keys::Key, decryptors::ByteDecryptorImpl}, ByteDecryptor}, fileio::{readers::{FileReader, ChunkReader}, writer::FileWriter}, filecrypto::{FileDecryptor},
+        crypto::{chacha::{keys::Key, decryptors::ByteDecryptorImpl}, ByteDecryptor}, fileio::{readers::{ChunkReader}, writers::FileWriter}, filecrypto::{FileDecryptor},
     };
     
     pub struct CCFileDecryptor<'a> {
