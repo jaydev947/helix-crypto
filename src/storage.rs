@@ -1,5 +1,4 @@
 use crate::{
-    codecs::hex::decode,
     crypto::{
         chacha::{
             decryptors::ByteDecryptorImpl,
@@ -7,9 +6,10 @@ use crate::{
         },
         ByteDecryptor,
     },
+    util::hex::decode,
 };
 
-struct File {
+pub struct File {
     id: String,
     key: String,
     plain_hash: String,
@@ -17,14 +17,18 @@ struct File {
     file_relative_path: String,
 }
 
-struct FileStore {}
+pub struct FileStore;
 
 impl FileStore {
-    fn get(id: String) -> File {
+    pub fn get(self, id: &str) -> Option<File> {
         todo!()
     }
 
-    fn store(file: File) {}
+    pub fn search_plain_hash(self, plain_hash: &str) -> Option<File> {
+        todo!()
+    }
+
+    pub fn store(self, file: File) {}
 }
 
 pub struct MasterKey {
@@ -39,7 +43,7 @@ impl MasterKeyStore {
 
     fn update(self, master_key: MasterKey) {}
 
-    pub fn get(self ) -> MasterKey {
+    pub fn get(self) -> MasterKey {
         todo!()
     }
 }

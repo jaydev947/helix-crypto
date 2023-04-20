@@ -6,10 +6,9 @@ pub mod keys {
     };
     use json::object;
     use rand::{rngs::StdRng, CryptoRng, RngCore, SeedableRng};
-    use sha256::digest;
 
     use crate::{
-        codecs::hex::{decode, decode_vec, encode, encode_vec},
+        util::hex::{decode, decode_vec, encode, encode_vec},
         crypto::{ByteDecryptor, ByteEncryptor},
     };
 
