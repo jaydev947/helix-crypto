@@ -1,9 +1,9 @@
-mod chacha;
+pub mod chacha;
 
 pub trait FileEncryptor{
-    fn encrypt(&self, source: String, destination: String);
+    fn encrypt(&self, source: &str, destination: &str);
 }
 
 pub trait FileDecryptor{
-    fn decrypt(&self, source: String, destination: String);
+    fn decrypt(&self, source: &str, destination: &str);
 }

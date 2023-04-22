@@ -9,7 +9,7 @@ pub struct FileReader {
 }
 
 impl FileReader {
-    pub fn from(capacity: u32, file_path: String) -> Self {
+    pub fn from(capacity: u32, file_path: &str) -> Self {
         let file = File::open(file_path).unwrap();
         let cap = capacity.try_into().unwrap();
         let buf_reader = BufReader::with_capacity(cap, file);
@@ -44,7 +44,7 @@ pub struct ChunkReader {
 }
 
 impl ChunkReader {
-    pub fn from(file_path: String) -> Self {
+    pub fn from(file_path: &str) -> Self {
         let file = File::open(file_path).unwrap();
         ChunkReader {
             file,

@@ -32,7 +32,7 @@ pub mod keys {
             return KeyDecryptor { byte_decryptor };
         }
 
-        pub fn decrypt(&self, key_string: String) -> Key {
+        pub fn decrypt(&self, key_string: &str) -> Key {
             let key_json = json::from(key_string);
             let nonce_ge = {
                 let nonce = key_json["nonce"].to_string();
@@ -42,7 +42,7 @@ pub mod keys {
             };
             let key_ge = {
                 let key = key_json["key"].to_string();
-                let mut encrypted_key = decode_vec(key);
+                let mut encrypted_key = decode_vec(&key);
                 self.byte_decryptor.decrypt(&mut encrypted_key);
                 let key: [u8; KEY_SIZE] = encrypted_key.try_into().unwrap();
                 *GenericArray::from_slice(&key)
@@ -141,9 +141,9 @@ pub mod decryptors {
 
     use chacha20poly1305::{AeadInPlace, ChaCha20Poly1305, KeyInit};
 
-    use crate::crypto::ByteDecryptor;
+    use crate::crypto::{ByteDecryptor, ByteEncryptor};
 
-    use super::keys::Key;
+    use super::{keys::Key, encryptors::ByteEncryptorImpl};
 
     pub struct ByteDecryptorImpl<'a> {
         key: &'a Key,
@@ -166,6 +166,7 @@ pub mod decryptors {
                 .unwrap();
         }
     }
+
 }
 
 #[cfg(test)]

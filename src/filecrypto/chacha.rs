@@ -17,7 +17,7 @@ pub mod encryptors{
     
     impl<'a> FileEncryptor for CCFileEncryptor<'a> {
 
-        fn encrypt(&self, source: String, destination: String) {
+        fn encrypt(&self, source: &str, destination: &str) {
             let byte_encryptor = ByteEncryptorImpl::from(&self.key);
             let mut reader = FileReader::from(CAP,source);
             let mut writer = ChunkWriter::from(destination);
@@ -51,7 +51,7 @@ pub mod decryptors{
     
     impl<'a> FileDecryptor for CCFileDecryptor<'a> {
         
-        fn decrypt(&self, source: String, destination: String) {
+        fn decrypt(&self, source: &str, destination: &str) {
             let byte_encryptor = ByteDecryptorImpl::from(&self.key);
             let mut reader = ChunkReader::from(source);
             let mut writer = FileWriter::from(destination);
@@ -80,13 +80,13 @@ pub mod decryptors{
             // let source = String::from("D:\\test\\1.txt");
             let dest = String::from("D:\\test\\1enc3");
             print!("encrypting");
-            encryptor.encrypt(source, dest);
+            encryptor.encrypt(&source, &dest);
             let decryptor = CCFileDecryptor::from(&key);
             let dec_source = String::from("D:\\test\\1enc3");
             let dec_dest = String::from("D:\\test\\dec.pdf");
             // let dec_dest = String::from("D:\\test\\1dec.txt");
             print!("decrypting");
-            decryptor.decrypt(dec_source,dec_dest);
+            decryptor.decrypt(&dec_source,&dec_dest);
             print!("done")
         }
     }

@@ -9,7 +9,7 @@ pub struct FileWriter {
 }
 
 impl FileWriter {
-    pub fn from(file_path: String) -> Self {
+    pub fn from(file_path: &str) -> Self {
         let file = File::options()
             .create(true)
             .write(true)
@@ -36,7 +36,7 @@ pub struct ChunkWriter {
 }
 
 impl ChunkWriter {
-    pub fn from(file_path: String) -> Self {
+    pub fn from(file_path: &str) -> Self {
         let file = File::options()
             .create(true)
             .write(true)

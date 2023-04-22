@@ -3,7 +3,7 @@ pub mod hex {
         hex::decode_to_slice(data, out).unwrap();
     }
 
-    pub fn decode_vec(data: String) -> Vec<u8> {
+    pub fn decode_vec(data: &str) -> Vec<u8> {
         hex::decode(data).unwrap()
     }
 
@@ -46,3 +46,19 @@ use std::{io, fs};
 
     
 }
+
+#[cfg(test)]
+    mod tests {
+        use super::hash::hash_file;
+
+        
+    
+        #[test]
+        fn file_encrypt_decrypt_test() {
+           
+            let source = String::from("D:\\Other\\Badhaai Do (2022) [1080p] [WEBRip] [5.1] [YTS.MX]\\Badhaai.Do.2022.1080p.WEBRip.x264.AAC5.1-[YTS.MX].mp4");
+            // let source = String::from("D:\\test\\19mb.pdf");
+            let hash = hash_file(&source);
+            println!("{}",hash)
+        }
+    }
