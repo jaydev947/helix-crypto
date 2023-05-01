@@ -1,4 +1,7 @@
-use std::{fs::create_dir_all, path::Path};
+use std::{
+    fs::create_dir_all,
+    path::{Path, PathBuf},
+};
 
 use rand::Error;
 use rusqlite::Connection;
@@ -24,64 +27,7 @@ use crate::{
     },
 };
 
-use self::folder_walker::get_files;
-
-pub struct MasterKeyManager<'a> {
-    connection: &'a Connection,
-}
-
-impl<'a> MasterKeyManager<'a> {
-    pub fn from(connection: &'a Connection) -> Self {
-        Self { connection }
-    }
-
-    pub fn generate(&self, passphrase: &'a str) -> Key {
-        let passphrase_digest = hash_string(passphrase);
-        let passphrase_key = Self::get_passphrase_key(passphrase, &passphrase_digest);
-        let key_encryptor = KeyEncryptor::from(&passphrase_key);
-        let master_key_plain = Key::new();
-        let master_key = key_encryptor.encrypt(&master_key_plain);
-        let master_key_store = MasterKeyStore::from(self.connection);
-        master_key_store.insert(MasterKey {
-            passphrase_digest,
-            master_key,
-        });
-        master_key_plain
-    }
-
-    pub fn get(&self, passphrase: &'a str) -> Option<Key> {
-        let passphrase_digest = hash_string(passphrase);
-        let master_key_store = MasterKeyStore::from(self.connection);
-        match master_key_store.get() {
-            Some(master_key) => {
-                if !master_key.passphrase_digest.eq(&passphrase_digest) {
-                    panic!("incorrect passphrase");
-                }
-                let key = Self::get_passphrase_key(passphrase, &passphrase_digest);
-                let key_decryptor = KeyDecryptor::from(&key);
-                let decrypted = key_decryptor.decrypt(&master_key.master_key);
-                Some(decrypted)
-            }
-            None => None,
-        }
-    }
-
-    fn get_passphrase_key(passphrase: &str, passphrase_digest: &str) -> Key {
-        let final_digest_str = format!("{}{}", passphrase, passphrase_digest);
-        let final_digest = Self::get_hash_bytes(&final_digest_str);
-        let passphrase_key = Key::from_seed(final_digest);
-        passphrase_key
-    }
-
-    fn get_hash_bytes(passphrase: &str) -> [u8; 32] {
-        let digest = hash_string(passphrase);
-        let mut digest_bytes = [0; 32];
-        decode(digest, &mut digest_bytes);
-        digest_bytes
-    }
-}
-
-struct HelixFileEncryptor<'a> {
+pub(super) struct HelixFileEncryptor<'a> {
     block_folder: &'a str,
     file_store: FileStore<'a>,
     key_encryptor: KeyEncryptor<'a>,
@@ -89,7 +35,11 @@ struct HelixFileEncryptor<'a> {
 }
 
 impl<'a> HelixFileEncryptor<'a> {
-    pub fn from(block_folder: &'a str, master_key: &'a Key, connection: &'a Connection) -> Self {
+    pub(super) fn from(
+        block_folder: &'a str,
+        master_key: &'a Key,
+        connection: &'a Connection,
+    ) -> Self {
         Self {
             block_folder,
             file_store: FileStore::from(connection),
@@ -98,7 +48,7 @@ impl<'a> HelixFileEncryptor<'a> {
         }
     }
 
-    pub fn encrypt(&self, file_path: &str) {
+    pub(super) fn encrypt(&self, file_path: &str) {
         let file_name = Path::new(file_path).file_name().unwrap().to_str().unwrap();
         let file_id = hash_string(file_name);
         let file_option = self.file_store.get(&file_id);
@@ -119,13 +69,12 @@ impl<'a> HelixFileEncryptor<'a> {
         let file_encryptor = CCFileEncryptor::from(&file_key);
         let encrypted_file_path = self.get_block_path(file_id);
         file_encryptor.encrypt(file_path, &encrypted_file_path);
-        let plain_hash = hash_file(file_path);
         let encrypted_hash = hash_file(&encrypted_file_path);
         let encrypted_key = self.key_encryptor.encrypt(&file_key);
         let encrypted_file_path = Self::encrypt_filepath(&file_key, file_path);
         File {
             id: String::from(file_id),
-            plain_hash: plain_hash,
+            plain_hash: String::from(plain_hash),
             encrypted_hash: encrypted_hash,
             key: encrypted_key,
             file_path: encrypted_file_path,
@@ -167,8 +116,7 @@ impl<'a> HelixFileEncryptor<'a> {
     }
 }
 
-struct HelixFileDecryptor<'a> {
-    source_folder: &'a str,
+pub(super) struct HelixFileDecryptor<'a> {
     block_folder: &'a str,
     file_store: FileStore<'a>,
     key_decryptor: KeyDecryptor<'a>,
@@ -176,14 +124,12 @@ struct HelixFileDecryptor<'a> {
 }
 
 impl<'a> HelixFileDecryptor<'a> {
-    pub fn from(
-        source_folder: &'a str,
+    pub(super) fn from(
         block_folder: &'a str,
         master_key: &'a Key,
         connection: &'a Connection,
     ) -> Self {
         Self {
-            source_folder,
             block_folder,
             file_store: FileStore::from(connection),
             key_decryptor: KeyDecryptor::from(master_key),
@@ -191,7 +137,7 @@ impl<'a> HelixFileDecryptor<'a> {
         }
     }
 
-    fn decrypt(&self, file: File) {
+    pub(super) fn decrypt(&self, file: File) {
         let encrypted_file_path = self.get_encrypted_file_path(&file.id);
         if Self::encrypted_block_changed(&encrypted_file_path, &file.encrypted_hash) {
             return;
@@ -224,84 +170,5 @@ impl<'a> HelixFileDecryptor<'a> {
         let binding = Path::new(self.block_folder).join(file_id);
         let path = binding.to_str().unwrap();
         String::from(path)
-    }
-}
-
-struct HelixEncryptor<'a> {
-    source: &'a str,
-    destination: &'a str,
-    master_key: Key,
-    connection: Connection,
-}
-
-impl<'a> HelixEncryptor<'a> {
-    pub fn from(source: &'a str, destination: &'a str, passphrase: &'a str) -> Self {
-        let destination_path = Path::new(destination);
-        let helix_folder = destination_path.join(".helix");
-        let db_file_path = helix_folder.join("metadata.db");
-        create_dir_all(helix_folder).unwrap();
-        let connection = Connection::open(db_file_path).unwrap();
-        HelixSchemaCreator::create(&connection);
-        let master_key_manager = MasterKeyManager::from(&connection);
-        let master_key = match master_key_manager.get(passphrase) {
-            Some(key) => key,
-            None => master_key_manager.generate(passphrase),
-        };
-        Self {
-            source,
-            destination,
-            master_key,
-            connection,
-        }
-    }
-
-    pub fn encrypt(&self) {
-        let destination_path = Path::new(self.destination);
-        let helix_folder = destination_path.join(".helix");
-        let block_path = helix_folder.join("blocks");
-        create_dir_all(&block_path).unwrap();
-        let paths = get_files(self.source);
-        let helix_encryptor = HelixFileEncryptor::from(
-            block_path.to_str().unwrap(),
-            &self.master_key,
-            &self.connection,
-        );
-        for path in paths {
-            let path_str = path.to_str().unwrap();
-            helix_encryptor.encrypt(path_str);
-        }
-    }
-}
-
-mod folder_walker {
-
-    use std::path::PathBuf;
-    use walkdir::{DirEntry, WalkDir};
-
-    pub fn get_files(source: &str) -> Vec<PathBuf> {
-        let walker = WalkDir::new(source);
-        let paths = walker
-            .into_iter()
-            .map(|e| e.unwrap())
-            .filter(|e| !is_hidden(e))
-            .filter(|e| e.metadata().unwrap().is_file())
-            .map(|e| e.into_path());
-        Vec::from_iter(paths)
-    }
-
-    fn is_hidden(entry: &DirEntry) -> bool {
-        entry
-            .file_name()
-            .to_str()
-            .map(|s| s.starts_with("."))
-            .unwrap_or(false)
-    }
-
-    #[test]
-    fn get_source_files_test() {
-        let paths = get_files("./src");
-        for path in paths {
-            println!("{}", path.display())
-        }
     }
 }

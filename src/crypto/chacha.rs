@@ -8,8 +8,8 @@ pub mod keys {
     use rand::{rngs::StdRng, CryptoRng, RngCore, SeedableRng};
 
     use crate::{
-        util::hex::{decode, decode_vec, encode, encode_vec},
         crypto::{ByteDecryptor, ByteEncryptor},
+        util::hex::{decode, decode_vec, encode, encode_vec},
     };
 
     use super::{decryptors::ByteDecryptorImpl, encryptors::ByteEncryptorImpl};
@@ -33,7 +33,7 @@ pub mod keys {
         }
 
         pub fn decrypt(&self, key_string: &str) -> Key {
-            let key_json = json::from(key_string);
+            let key_json = json::parse(key_string).unwrap();
             let nonce_ge = {
                 let nonce = key_json["nonce"].to_string();
                 let mut nonce_bytes = [0u8; NONCE_SIZE];
@@ -74,9 +74,11 @@ pub mod keys {
                 nonce: nonce_string
             };
             ob.dump()
+            // json::stringify(ob)
         }
     }
 
+    #[derive(Debug)]
     pub struct Key {
         pub(super) key: GenericArray<u8, U32>,
         pub(super) nonce: GenericArray<u8, U12>,
@@ -88,11 +90,11 @@ pub mod keys {
         }
 
         pub fn from_seed(seed: [u8; 32]) -> Self {
-            // let digest = digest(input);
-            // let mut digest_bytes = [0; 32];
-            // decode(digest, &mut digest_bytes);
+            let mut iv_seed = seed;
+            iv_seed.reverse();
             let mut rng = StdRng::from_seed(seed);
-            Self::new_internal(rng, &mut OsRng)
+            let mut iv_rng = StdRng::from_seed(iv_seed);
+            Self::new_internal(rng, iv_rng)
         }
 
         fn new_internal(
@@ -103,6 +105,16 @@ pub mod keys {
             let nonce = ChaCha20Poly1305::generate_nonce(iv_rng);
             Self { key, nonce }
         }
+    }
+
+    #[test]
+    fn key_encrypt_decrypt_test() {
+        let key = Key::new();
+        let key_encryptor = KeyEncryptor::from(&key);
+        let key_decryptor = KeyDecryptor::from(&key);
+        let encrypted = key_encryptor.encrypt(&key);
+        let decrypted = key_decryptor.decrypt(&encrypted);
+        print!("{:?}", decrypted);
     }
 }
 
@@ -143,7 +155,7 @@ pub mod decryptors {
 
     use crate::crypto::{ByteDecryptor, ByteEncryptor};
 
-    use super::{keys::Key, encryptors::ByteEncryptorImpl};
+    use super::{encryptors::ByteEncryptorImpl, keys::Key};
 
     pub struct ByteDecryptorImpl<'a> {
         key: &'a Key,
@@ -166,7 +178,6 @@ pub mod decryptors {
                 .unwrap();
         }
     }
-
 }
 
 #[cfg(test)]

@@ -74,7 +74,10 @@ impl<'a> FileStore<'a> {
                 })
             })
             .unwrap();
-        Some(files.next().unwrap().unwrap())
+        match files.next() {
+            Some(data) => Some(data.unwrap()),
+            None => None,
+        }
     }
 
     pub fn store(&self, file: File) {
@@ -90,7 +93,7 @@ impl<'a> FileStore<'a> {
     }
 
     pub fn update(&self, file: File) {
-        let query = "UPDATE master_key SET key = ?2,
+        let query = "UPDATE files SET key = ?2,
          plain_hash = ?3, 
          encrypted_hash = ?4,
          file_path = ?5
