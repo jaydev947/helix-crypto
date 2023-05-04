@@ -99,9 +99,9 @@ impl<'a> HelixEncryptor<'a> {
         );
         for path in paths {
             let path_str = path.to_str().unwrap();
-            print!("encrypting {}", path_str);
+            println!("encrypting {}", path_str);
             helix_encryptor.encrypt(path_str);
-            print!("encrypted {}", path_str);
+            println!("encrypted {}", path_str);
         }
         Ok(())
     }
@@ -175,7 +175,8 @@ impl<'a> HelixDecryptor<'a> {
         }
     }
 
-    pub(super) fn decrypt(&self) -> Result<(), HelixError> {
+    pub(super) fn decrypt(&mut self) -> Result<(), HelixError> {
+        self.check_helix_setup().unwrap();
         let state = self.helix_state.as_ref().unwrap();
         let file_store = FileStore::from(&state.connection);
         let files = file_store.get_all();
@@ -198,4 +199,10 @@ impl<'a> HelixDecryptor<'a> {
 fn encryption_test() {
     let mut encryptor = HelixEncryptor::from("../test", "../test", "passphrase");
     encryptor.encrypt().unwrap();
+}
+
+#[test]
+fn decryption_test(){
+    let mut decryptor = HelixDecryptor::from("../test", "../test", "passphrase");
+    decryptor.decrypt().unwrap();
 }

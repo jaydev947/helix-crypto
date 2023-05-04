@@ -8,14 +8,15 @@ pub(super) fn get_files(source: &str) -> Vec<PathBuf> {
         .into_iter()
         .map(|e| e.unwrap())
         .filter(|e| !is_hidden(e))
-        .filter(|e| is_helix(e, &helix))
+        .filter(|e| !is_helix(e, &helix))
         .filter(|e| e.metadata().unwrap().is_file())
         .map(|e| e.into_path());
     Vec::from_iter(paths)
 }
 
 fn is_helix(entry: &DirEntry, helix: &Path) -> bool {
-    entry.path().starts_with(helix)
+    let starts = entry.path().starts_with(helix);
+    starts
 }
 
 fn is_hidden(entry: &DirEntry) -> bool {

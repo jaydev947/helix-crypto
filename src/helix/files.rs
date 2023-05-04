@@ -51,6 +51,7 @@ impl<'a> HelixFileEncryptor<'a> {
     pub(super) fn encrypt(&self, file_path: &str) {
         let file_name = Path::new(file_path).file_name().unwrap().to_str().unwrap();
         let file_id = hash_string(file_name);
+        print!(" file name {} hashed to {}",file_name,file_id);
         let file_option = self.file_store.get(&file_id);
         match file_option {
             None => self.create_file(file_path, &file_id),
