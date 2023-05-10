@@ -25,11 +25,8 @@ use crate::{
         hash::{hash_file, hash_string},
         hex::{decode, decode_vec, encode_vec},
         uuid::generate,
-    },
+    }, errors::HelixError,
 };
-
-
-use super::errors::HelixError;
 
 pub(super) struct MasterKeyManager<'a> {
     connection: &'a Connection,
@@ -43,11 +40,9 @@ impl<'a> MasterKeyManager<'a> {
     pub(super) fn generate(&self, passphrase: &'a str) -> Key {
         let passphrase_digest = hash_string(passphrase);
         let passphrase_key = Self::get_passphrase_key(passphrase, &passphrase_digest);
-        println!("encryption pk {:?}",passphrase_key);
         let key_encryptor = KeyEncryptor::from(&passphrase_key);
         let master_key_plain = Key::new();
         let master_key = key_encryptor.encrypt(&master_key_plain);
-        println!("encryption mk {}",master_key);
         let master_key_store = MasterKeyStore::from(self.connection);
         master_key_store.insert(MasterKey {
             passphrase_digest,
@@ -68,8 +63,6 @@ impl<'a> MasterKeyManager<'a> {
                         "Provided passphrase does not match with the initially entered passphrase."));
                 }
                 let key = Self::get_passphrase_key(passphrase, &passphrase_digest);
-                println!("decryption pk {:?}",key);
-                println!("decryption mk {}",master_key.master_key);
                 let key_decryptor = KeyDecryptor::from(&key);
                 let decrypted = key_decryptor.decrypt(&master_key.master_key);
                 Ok(Some(decrypted))

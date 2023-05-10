@@ -28,6 +28,7 @@ use crate::{
 };
 
 pub(super) struct HelixFileEncryptor<'a> {
+    source_folder: &'a str,
     block_folder: &'a str,
     file_store: FileStore<'a>,
     key_encryptor: KeyEncryptor<'a>,
@@ -36,11 +37,13 @@ pub(super) struct HelixFileEncryptor<'a> {
 
 impl<'a> HelixFileEncryptor<'a> {
     pub(super) fn from(
+        source_folder: &'a str,
         block_folder: &'a str,
         master_key: &'a Key,
         connection: &'a Connection,
     ) -> Self {
         Self {
+            source_folder,
             block_folder,
             file_store: FileStore::from(connection),
             key_encryptor: KeyEncryptor::from(master_key),
@@ -49,9 +52,8 @@ impl<'a> HelixFileEncryptor<'a> {
     }
 
     pub(super) fn encrypt(&self, file_path: &str) {
-        let file_name = Path::new(file_path).file_name().unwrap().to_str().unwrap();
-        let file_id = hash_string(file_name);
-        print!(" file name {} hashed to {}",file_name,file_id);
+        // let file_name = Path::new(file_path).file_name().unwrap().to_str().unwrap();
+        let file_id = hash_string(file_path);
         let file_option = self.file_store.get(&file_id);
         match file_option {
             None => self.create_file(file_path, &file_id),
@@ -68,11 +70,12 @@ impl<'a> HelixFileEncryptor<'a> {
     fn encrypt_internal(&self, file_path: &str, file_id: &str, plain_hash: &str) -> File {
         let file_key = Key::new();
         let file_encryptor = CCFileEncryptor::from(&file_key);
-        let encrypted_file_path = self.get_block_path(file_id);
-        file_encryptor.encrypt(file_path, &encrypted_file_path);
-        let encrypted_hash = hash_file(&encrypted_file_path);
+        let block_path = self.get_block_path(file_id);
+        file_encryptor.encrypt(file_path, &block_path);
+        let encrypted_hash = hash_file(&block_path);
         let encrypted_key = self.key_encryptor.encrypt(&file_key);
-        let encrypted_file_path = Self::encrypt_filepath(&file_key, file_path);
+        let stripped_path = self.strip_source(file_path);
+        let encrypted_file_path = Self::encrypt_filepath(&file_key, stripped_path);
         File {
             id: String::from(file_id),
             plain_hash: String::from(plain_hash),
@@ -80,6 +83,12 @@ impl<'a> HelixFileEncryptor<'a> {
             key: encrypted_key,
             file_path: encrypted_file_path,
         }
+    }
+
+    fn strip_source(&self, file_path: &'a str) -> &'a str {
+        let source = Path::new(self.source_folder);
+        let file = Path::new(file_path);
+        file.strip_prefix(source).unwrap().to_str().unwrap()
     }
 
     fn get_block_path(&self, file_id: &str) -> String {
@@ -118,21 +127,17 @@ impl<'a> HelixFileEncryptor<'a> {
 }
 
 pub(super) struct HelixFileDecryptor<'a> {
+    destination: &'a str,
     block_folder: &'a str,
-    file_store: FileStore<'a>,
     key_decryptor: KeyDecryptor<'a>,
     byte_decryptor: ByteDecryptorImpl<'a>,
 }
 
 impl<'a> HelixFileDecryptor<'a> {
-    pub(super) fn from(
-        block_folder: &'a str,
-        master_key: &'a Key,
-        connection: &'a Connection,
-    ) -> Self {
+    pub(super) fn from(destination: &'a str, block_folder: &'a str, master_key: &'a Key) -> Self {
         Self {
+            destination,
             block_folder,
-            file_store: FileStore::from(connection),
             key_decryptor: KeyDecryptor::from(master_key),
             byte_decryptor: ByteDecryptorImpl::from(master_key),
         }
@@ -146,7 +151,16 @@ impl<'a> HelixFileDecryptor<'a> {
         let key = self.key_decryptor.decrypt(&file.key);
         let plain_file_path = Self::decrypt_filepath(&key, &file.file_path);
         let file_decryptor = CCFileDecryptor::from(&key);
-        file_decryptor.decrypt(&encrypted_file_path, &plain_file_path);
+        let complete_path = self.append_destination(plain_file_path);
+        file_decryptor.decrypt(&encrypted_file_path, &complete_path);
+    }
+
+    fn append_destination(&self, plain_file_path: String) -> String {
+        Path::new(self.destination)
+            .join(plain_file_path)
+            .to_str()
+            .unwrap()
+            .to_owned()
     }
 
     fn decrypt_filepath(key: &Key, file_path: &str) -> String {
@@ -172,4 +186,12 @@ impl<'a> HelixFileDecryptor<'a> {
         let path = binding.to_str().unwrap();
         String::from(path)
     }
+}
+
+#[test]
+fn source_striper() {
+    let source = Path::new(".").to_path_buf();
+    let child = Path::new(".").join("mid").join("hello.txt");
+    let stripped = child.strip_prefix(source).unwrap();
+    println!("{:?}", stripped)
 }

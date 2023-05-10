@@ -1,4 +1,4 @@
-pub mod hex {
+pub(crate) mod hex {
     pub fn decode(data: String, out: &mut [u8]) {
         hex::decode_to_slice(data, out).unwrap();
     }
@@ -16,7 +16,7 @@ pub mod hex {
     }
 }
 
-pub mod uuid {
+pub(crate) mod uuid {
     use bson::oid::ObjectId;
 
     pub fn generate() -> String {
@@ -24,7 +24,7 @@ pub mod uuid {
     }
 }
 
-pub mod hash {
+pub(crate) mod hash {
 
     use sha2::{Sha256, Digest};
 use std::{io, fs};
