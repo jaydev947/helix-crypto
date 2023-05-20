@@ -8,6 +8,8 @@ use crate::observer::Event;
 use crate::observer::EventImpl;
 use clap::{command, Args, Parser, Subcommand};
 
+use self::file::CliEncryptionObserverFactory;
+
 mod capsule;
 pub mod file;
 
@@ -82,20 +84,19 @@ fn encrypt(enc_args: EncryptArgs) {
         Some(e) => e.to_str().unwrap().to_owned(),
     };
     let passphrase = rpassword::prompt_password("Enter passphrase: ").unwrap();
-    if !HelixEncryptor::source_has_helix_folder(&source) {
+    if !HelixEncryptor::has_helix_folder(&destination) {
         let confirm_passphrase = rpassword::prompt_password("Confirm passphrase: ").unwrap();
         if !confirm_passphrase.eq(&passphrase) {
             println!("Passphrase did not match. Try again!");
             return;
         }
     }
-    let mut subject = EventImpl::<Operation<PathBuf>, (PathBuf, HelixError)>::new::<
-        Operation<PathBuf>,
-        (PathBuf, HelixError),
-    >();
-    let cli_observer = FileObserver {};
-    subject.subscribe(&cli_observer);
-    let mut encryptor = HelixEncryptor::from(&source, &destination, &passphrase, &subject);
+    let mut encryptor = HelixEncryptor::from(
+        &source,
+        &destination,
+        &passphrase,
+        &CliEncryptionObserverFactory,
+    );
     if let Err(e) = encryptor.encrypt() {
         println!("Failed to encrypt, Reason : {}", e.message);
     }

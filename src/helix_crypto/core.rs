@@ -1,12 +1,12 @@
 use std::{
-    fs::create_dir_all,
+    fs::{self, create_dir_all},
     path::{Path, PathBuf},
 };
 
 use rusqlite::Connection;
 
 use crate::{
-    cli::Operation,
+    cli::{file::EncryptionObserverFactory, Operation},
     crypto::chacha::keys::Key,
     errors::HelixError,
     observer::{Event, EventImpl},
@@ -32,27 +32,29 @@ pub struct HelixEncryptor<'a> {
     destination: &'a str,
     passphrase: &'a str,
     helix_state: Option<HelixState>,
-    file_encryption_subject: FileEncryptionSubject<'a>,
+    encryption_observer_factory: &'a dyn EncryptionObserverFactory,
 }
+
+const CAP: u32 = 1024 * 1024 * 2;
 
 impl<'a> HelixEncryptor<'a> {
     pub fn from(
         source: &'a str,
         destination: &'a str,
         passphrase: &'a str,
-        file_encryption_subject: FileEncryptionSubject<'a>,
+        encryption_observer_factory: &'a impl EncryptionObserverFactory,
     ) -> Self {
         Self {
             source,
             destination,
             passphrase,
             helix_state: None,
-            file_encryption_subject,
+            encryption_observer_factory,
         }
     }
 
-    pub fn source_has_helix_folder(source: &str) -> bool {
-        let path = Path::new(source).join(".helix");
+    pub fn has_helix_folder(folder: &str) -> bool {
+        let path = Path::new(folder).join(".helix");
         path.exists()
     }
 
@@ -97,14 +99,14 @@ impl<'a> HelixEncryptor<'a> {
             state.block_directory.to_str().unwrap(),
             &state.master_key,
             &state.connection,
+            CAP,
         );
         for path in paths {
             let path_str = path.to_str().unwrap();
-            self.file_encryption_subject
-                .notify(&Operation::Begin(path.clone()));
-            helix_encryptor.encrypt(path_str);
-            self.file_encryption_subject
-                .notify(&Operation::End(path.clone()));
+            let size = fs::metadata(path.clone()).unwrap().len();
+            let observer = self.encryption_observer_factory.create(path.clone(), size, CAP);
+            helix_encryptor.encrypt(path_str, &*observer);
+            observer.end();
         }
         Ok(())
     }
