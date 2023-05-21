@@ -1,28 +1,18 @@
-use std::{fmt::Display, io::Write, path::PathBuf};
-
-use crate::cli::file::FileObserver;
-use crate::errors::HelixError;
+use std::{path::PathBuf};
 use crate::helix_crypto::core::HelixDecryptor;
 use crate::helix_crypto::core::HelixEncryptor;
-use crate::observer::Event;
-use crate::observer::EventImpl;
 use clap::{command, Args, Parser, Subcommand};
 
+use self::file::CliDecryptionObserverFactory;
 use self::file::CliEncryptionObserverFactory;
-
-mod capsule;
 pub mod file;
 
-pub enum Operation<T> {
-    Begin(T),
-    End(T),
-}
 
 #[derive(Parser)]
 #[command(name = "Helix")]
 #[command(author = "Jaydev Rai <jaydev947@gmail.com>")]
 #[command(version = "1.0.0")]
-#[command(about = "Encyrpts and decrypts your important files", long_about = None)]
+#[command(about = "Encyrpts and decrypts files", long_about = None)]
 struct HelixCommand {
     #[command(subcommand)]
     subcommand: HelixSubCommand,
@@ -112,7 +102,7 @@ fn decrypt(dec_args: DecryptArgs) {
         Some(e) => e.to_str().unwrap().to_owned(),
     };
     let passphrase = rpassword::prompt_password("Enter passphrase: ").unwrap();
-    let mut decryptor = HelixDecryptor::from(&source, &destination, &passphrase);
+    let mut decryptor = HelixDecryptor::from(&source, &destination, &passphrase,&CliDecryptionObserverFactory);
     if let Err(e) = decryptor.decrypt() {
         println!("Failed to decrypt, Reason : {}", e.message);
     }

@@ -1,5 +1,5 @@
 use std::{
-    fs::create_dir_all,
+    fs::{self, create_dir_all},
     path::{Path, PathBuf},
 };
 
@@ -7,7 +7,10 @@ use rand::Error;
 use rusqlite::Connection;
 
 use crate::{
-    cli::file::{EncryptionObserver, ValidationStates},
+    cli::file::{
+        DecryptionEndState, DecryptionObserver, DecryptionObserverFactory, DecryptionStates,
+        EncryptionObserver, EncryptionStates,
+    },
     crypto::{
         chacha::{
             decryptors::ByteDecryptorImpl,
@@ -17,10 +20,7 @@ use crate::{
         ByteDecryptor, ByteEncryptor,
     },
     filecrypto::{
-        chacha::{
-            decryptors::CCFileDecryptor,
-            encryptors::{CCFileEncryptor, ChunkObserver},
-        },
+        chacha::{decryptors::CCFileDecryptor, encryptors::CCFileEncryptor, ChunkObserver},
         FileDecryptor, FileEncryptor,
     },
     storage::{schema::HelixSchemaCreator, File, FileStore, MasterKey, MasterKeyStore},
@@ -31,13 +31,13 @@ use crate::{
     },
 };
 
-struct ChunkObserverWrapper<'a> {
-    encryption_observer: &'a dyn EncryptionObserver,
+struct EncryptionChunkObserverWrapper<'a> {
+    encryption_observer: &'a mut dyn EncryptionObserver,
 }
 
-impl ChunkObserver for ChunkObserverWrapper<'_> {
-    fn chunk_encrypted(&self, chunk_number: u32) {
-        self.encryption_observer.update_chunk_encrypted(chunk_number);
+impl ChunkObserver for EncryptionChunkObserverWrapper<'_> {
+    fn bytes_processed(&mut self, chunk_number: u64) {
+        self.encryption_observer.bytes_processed(chunk_number);
     }
 }
 
@@ -66,7 +66,7 @@ impl<'a> HelixFileEncryptor<'a> {
         }
     }
 
-    pub(super) fn encrypt(&self, file_path: &str, observer: &dyn EncryptionObserver) {
+    pub(super) fn encrypt(&self, file_path: &str, observer: &mut dyn EncryptionObserver) {
         let file_id = hash_string(file_path);
         let file_option = self.file_store.get(&file_id);
         match file_option {
@@ -75,11 +75,12 @@ impl<'a> HelixFileEncryptor<'a> {
         };
     }
 
-    fn create_file(&self, file_path: &str, file_id: &str, observer: &dyn EncryptionObserver) {
-        observer.update_state(ValidationStates::PlainFileCheck);
+    fn create_file(&self, file_path: &str, file_id: &str, observer: &mut dyn EncryptionObserver) {
+        observer.update_state(EncryptionStates::PlainFileCheck);
         let plain_hash = hash_file(file_path);
         let file = self.encrypt_internal(file_path, file_id, &plain_hash, observer);
         self.file_store.store(file);
+        observer.end(crate::cli::file::EncryptionEndState::Done)
     }
 
     fn encrypt_internal(
@@ -87,13 +88,14 @@ impl<'a> HelixFileEncryptor<'a> {
         file_path: &str,
         file_id: &str,
         plain_hash: &str,
-        observer: &dyn EncryptionObserver,
+        observer: &mut dyn EncryptionObserver,
     ) -> File {
-        let chunk_observer = ChunkObserverWrapper {
+        let mut chunk_observer = EncryptionChunkObserverWrapper {
             encryption_observer: observer,
         };
         let file_key = Key::new();
-        let file_encryptor = CCFileEncryptor::from(&file_key, self.chunk_size, &chunk_observer);
+        let mut file_encryptor =
+            CCFileEncryptor::from(&file_key, self.chunk_size, &mut chunk_observer);
         let block_path = self.get_block_path(file_id);
         file_encryptor.encrypt(file_path, &block_path);
         let encrypted_hash = hash_file(&block_path);
@@ -133,18 +135,19 @@ impl<'a> HelixFileEncryptor<'a> {
         file_path: &str,
         file_id: &str,
         file: &File,
-        observer: &dyn EncryptionObserver,
+        observer: &mut dyn EncryptionObserver,
     ) {
         let current_hash = hash_file(file_path);
         if current_hash.eq(&file.plain_hash) {
-            observer.update_state(ValidationStates::EncryptedBlockCheck);
+            observer.update_state(EncryptionStates::EncryptedBlockCheck);
             if self.encrypted_file_unchanged(file_id, &file.encrypted_hash) {
-                observer.update_state(ValidationStates::Unchanged);
+                observer.end(crate::cli::file::EncryptionEndState::Unchanged);
                 return;
             }
         }
         let file = self.encrypt_internal(file_path, file_id, &current_hash, observer);
         self.file_store.update(file);
+        observer.end(crate::cli::file::EncryptionEndState::Done);
     }
 
     fn encrypted_file_unchanged(&self, file_id: &str, encrypted_hash: &str) -> bool {
@@ -162,27 +165,54 @@ pub(super) struct HelixFileDecryptor<'a> {
     destination: &'a str,
     block_folder: &'a str,
     key_decryptor: KeyDecryptor<'a>,
+    observer_factory: &'a dyn DecryptionObserverFactory,
+}
+
+struct DecryptionChunkObserverWrapper<'a> {
+    decryption_observer: &'a mut dyn DecryptionObserver,
+}
+
+impl ChunkObserver for DecryptionChunkObserverWrapper<'_> {
+    fn bytes_processed(&mut self, bytes: u64) {
+        self.decryption_observer.bytes_processed(bytes);
+    }
 }
 
 impl<'a> HelixFileDecryptor<'a> {
-    pub(super) fn from(destination: &'a str, block_folder: &'a str, master_key: &'a Key) -> Self {
+    pub(super) fn from(
+        destination: &'a str,
+        block_folder: &'a str,
+        master_key: &'a Key,
+        observer_factory: &'a dyn DecryptionObserverFactory,
+    ) -> Self {
         Self {
             destination,
             block_folder,
             key_decryptor: KeyDecryptor::from(master_key),
+            observer_factory,
         }
     }
 
     pub(super) fn decrypt(&self, file: File) {
+        let key = self.key_decryptor.decrypt(&file.key);
         let encrypted_file_path = self.get_encrypted_file_path(&file.id);
-        if Self::encrypted_block_changed(&encrypted_file_path, &file.encrypted_hash) {
+        let plain_file_path = Self::decrypt_filepath(&key, &file.file_path);
+        let complete_path = self.append_destination(plain_file_path);
+        let path_buf = PathBuf::from(&complete_path);
+        // create_dir_all(&path_buf).unwrap();
+        let mut observer = self.observer_factory.create(path_buf);
+        observer.update_state(DecryptionStates::EncryptedBlockCheck);
+        if Self::encrypted_block_changed(&encrypted_file_path, &file.encrypted_hash, &observer) {
             return;
         }
-        let key = self.key_decryptor.decrypt(&file.key);
-        let plain_file_path = Self::decrypt_filepath(&key, &file.file_path);
-        let file_decryptor = CCFileDecryptor::from(&key);
-        let complete_path = self.append_destination(plain_file_path);
+        let size = fs::metadata(&encrypted_file_path).unwrap().len();
+        observer.init_size(size);
+        let mut wrapper = DecryptionChunkObserverWrapper {
+            decryption_observer: &mut *observer,
+        };
+        let mut file_decryptor = CCFileDecryptor::from(&key, &mut wrapper);
         file_decryptor.decrypt(&encrypted_file_path, &complete_path);
+        observer.end(DecryptionEndState::Done)
     }
 
     fn append_destination(&self, plain_file_path: String) -> String {
@@ -200,12 +230,18 @@ impl<'a> HelixFileDecryptor<'a> {
         String::from_utf8(decoded).unwrap()
     }
 
-    fn encrypted_block_changed(file_path: &str, file_hash: &str) -> bool {
+    fn encrypted_block_changed(
+        file_path: &str,
+        file_hash: &str,
+        observer: &Box<dyn DecryptionObserver>,
+    ) -> bool {
         if !Path::new(file_path).exists() {
+            observer.end(DecryptionEndState::BlockNotFound);
             return true;
         }
         let current_hash = hash_file(file_path);
         if !current_hash.eq(file_hash) {
+            observer.end(DecryptionEndState::MalformedBlock);
             return true;
         }
         return false;

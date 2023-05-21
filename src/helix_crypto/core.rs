@@ -6,10 +6,12 @@ use std::{
 use rusqlite::Connection;
 
 use crate::{
-    cli::{file::EncryptionObserverFactory, Operation},
+    cli::file::{
+        CliDecryptionObserverFactory, CliEncryptionObserverFactory, DecryptionObserverFactory,
+        EncryptionObserverFactory,
+    },
     crypto::chacha::keys::Key,
     errors::HelixError,
-    observer::{Event, EventImpl},
     storage::{schema::HelixSchemaCreator, FileStore},
 };
 
@@ -24,9 +26,6 @@ struct HelixState {
     master_key: Key,
     block_directory: PathBuf,
 }
-
-pub type FileEncryptionSubject<'a> = &'a EventImpl<'a, Operation<PathBuf>, (PathBuf, HelixError)>;
-
 pub struct HelixEncryptor<'a> {
     source: &'a str,
     destination: &'a str,
@@ -104,9 +103,10 @@ impl<'a> HelixEncryptor<'a> {
         for path in paths {
             let path_str = path.to_str().unwrap();
             let size = fs::metadata(path.clone()).unwrap().len();
-            let observer = self.encryption_observer_factory.create(path.clone(), size, CAP);
-            helix_encryptor.encrypt(path_str, &*observer);
-            observer.end();
+            let mut observer = self
+                .encryption_observer_factory
+                .create(path.clone(), size);
+            helix_encryptor.encrypt(path_str, &mut *observer);
         }
         Ok(())
     }
@@ -117,15 +117,22 @@ pub(crate) struct HelixDecryptor<'a> {
     destination: &'a str,
     passphrase: &'a str,
     helix_state: Option<HelixState>,
+    decryption_observer_factory: &'a dyn DecryptionObserverFactory,
 }
 
 impl<'a> HelixDecryptor<'a> {
-    pub fn from(source: &'a str, destination: &'a str, passphrase: &'a str) -> Self {
+    pub fn from(
+        source: &'a str,
+        destination: &'a str,
+        passphrase: &'a str,
+        decryption_observer_factory: &'a dyn DecryptionObserverFactory,
+    ) -> Self {
         Self {
             source,
             destination,
             passphrase,
             helix_state: None,
+            decryption_observer_factory,
         }
     }
 
@@ -192,6 +199,7 @@ impl<'a> HelixDecryptor<'a> {
             self.destination,
             state.block_directory.to_str().unwrap(),
             &state.master_key,
+            self.decryption_observer_factory
         );
         for file in files {
             helix_file_decryptor.decrypt(file);
@@ -202,12 +210,22 @@ impl<'a> HelixDecryptor<'a> {
 
 #[test]
 fn encryption_test() {
-    // let mut encryptor = HelixEncryptor::from("../test", "../test", "passphrase");
-    // encryptor.encrypt().unwrap();
+    let mut encryptor = HelixEncryptor::from(
+        "../test",
+        "../test",
+        "passphrase",
+        &CliEncryptionObserverFactory,
+    );
+    encryptor.encrypt().unwrap();
 }
 
 #[test]
 fn decryption_test() {
-    let mut decryptor = HelixDecryptor::from("../test", "../test", "passphrase");
+    let mut decryptor = HelixDecryptor::from(
+        "../test",
+        "../test",
+        "passphrase",
+        &CliDecryptionObserverFactory,
+    );
     decryptor.decrypt().unwrap();
 }

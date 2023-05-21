@@ -1,4 +1,3 @@
-
 use std::{
     fs::create_dir_all,
     path::{Path, PathBuf},
@@ -16,6 +15,7 @@ use crate::{
         },
         ByteDecryptor, ByteEncryptor,
     },
+    errors::HelixError,
     filecrypto::{
         chacha::{decryptors::CCFileDecryptor, encryptors::CCFileEncryptor},
         FileDecryptor, FileEncryptor,
@@ -25,7 +25,7 @@ use crate::{
         hash::{hash_file, hash_string},
         hex::{decode, decode_vec, encode_vec},
         uuid::generate,
-    }, errors::HelixError,
+    },
 };
 
 pub(super) struct MasterKeyManager<'a> {
@@ -59,8 +59,9 @@ impl<'a> MasterKeyManager<'a> {
                 if !master_key.passphrase_digest.eq(&passphrase_digest) {
                     return Err(HelixError::from(
                         "BadInput",
-                        "PassphraseMismatch", 
-                        "Provided passphrase does not match with the initially entered passphrase."));
+                        "PassphraseMismatch",
+                        "Provided passphrase does not match with the initially entered passphrase.",
+                    ));
                 }
                 let key = Self::get_passphrase_key(passphrase, &passphrase_digest);
                 let key_decryptor = KeyDecryptor::from(&key);
@@ -87,20 +88,20 @@ impl<'a> MasterKeyManager<'a> {
 }
 
 #[test]
-    fn create_schema_test() {
-        let connection = Connection::open("../test.db").unwrap();
-        HelixSchemaCreator::create(&connection);
-    }
+fn create_schema_test() {
+    let connection = Connection::open("../test.db").unwrap();
+    HelixSchemaCreator::create(&connection);
+}
 
 #[test]
-fn generate_test(){
+fn generate_test() {
     let connection = Connection::open("../test.db").unwrap();
     let manager = MasterKeyManager::from(&connection);
     let key = manager.generate("passphrase");
 }
 
 #[test]
-fn get_test(){
+fn get_test() {
     let connection = Connection::open("../test.db").unwrap();
     let manager = MasterKeyManager::from(&connection);
     let key = manager.get("passphrase");
