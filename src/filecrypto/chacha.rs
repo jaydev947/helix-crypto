@@ -9,10 +9,7 @@ pub mod encryptors {
             ByteEncryptor,
         },
         filecrypto::FileEncryptor,
-        fileio::{
-            readers::FileReader,
-            writers::{ChunkWriter, FileWriter},
-        },
+        fileio::{readers::FileReader, writers::ChunkWriter},
     };
 
     use super::ChunkObserver;
@@ -107,15 +104,15 @@ mod tests {
 
     struct NOPObserver;
     impl ChunkObserver for NOPObserver {
-        fn bytes_processed(&mut self, chunk_number: u64) {}
+        fn bytes_processed(&mut self, _: u64) {}
     }
 
     #[test]
     fn file_encrypt_decrypt_test() {
-        let CAP: u32 = 1024 * 1024 * 2;
+        let cap: u32 = 1024 * 1024 * 2;
         let key = Key::new();
         let mut binding = NOPObserver;
-        let mut encryptor = CCFileEncryptor::from(&key, CAP, &mut binding);
+        let mut encryptor = CCFileEncryptor::from(&key, cap, &mut binding);
         // let source = String::from("D:\\Other\\Badhaai Do (2022) [1080p] [WEBRip] [5.1] [YTS.MX]\\Badhaai.Do.2022.1080p.WEBRip.x264.AAC5.1-[YTS.MX].mp4");
         let source = String::from("D:\\test\\19mb.pdf");
         // let source = String::from("D:\\test\\1.txt");

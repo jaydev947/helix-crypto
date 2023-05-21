@@ -1,11 +1,9 @@
 use std::{
     io::Write,
-    path::{Path, PathBuf},
+    path::PathBuf,
 };
 
 use crate::errors::HelixError;
-
-pub struct FileObserver;
 
 pub enum EncryptionStates {
     PlainFileCheck,

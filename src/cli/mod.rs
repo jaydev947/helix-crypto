@@ -1,18 +1,17 @@
-use std::{path::PathBuf};
 use crate::helix_crypto::core::HelixDecryptor;
 use crate::helix_crypto::core::HelixEncryptor;
 use clap::{command, Args, Parser, Subcommand};
+use std::path::PathBuf;
 
 use self::file::CliDecryptionObserverFactory;
 use self::file::CliEncryptionObserverFactory;
 pub mod file;
 
-
 #[derive(Parser)]
 #[command(name = "Helix")]
 #[command(author = "Jaydev Rai <jaydev947@gmail.com>")]
 #[command(version = "1.0.0")]
-#[command(about = "Encyrpts and decrypts files", long_about = None)]
+#[command(about = "Encyrpts and decrypts files in a directory", long_about = None)]
 struct HelixCommand {
     #[command(subcommand)]
     subcommand: HelixSubCommand,
@@ -35,10 +34,6 @@ struct EncryptArgs {
     ///The location of helix capsule. Defaults to current working directory
     #[arg(short, long, value_name = "DIRECTORY")]
     target: Option<PathBuf>,
-
-    ///Delete the files from all source directory after encryption
-    #[arg(short, long, default_value_t = false)]
-    delete: bool,
 }
 
 #[derive(Args)]
@@ -50,10 +45,6 @@ struct DecryptArgs {
     ///The location where all files will be decrypted. Defaults to current working directory
     #[arg(short, long, value_name = "DIRECTORY")]
     target: Option<PathBuf>,
-
-    ///Delete the helix capsule after decryption
-    #[arg(short, long, default_value_t = false)]
-    delete: bool,
 }
 
 pub fn execute_helix_command() {
@@ -102,7 +93,12 @@ fn decrypt(dec_args: DecryptArgs) {
         Some(e) => e.to_str().unwrap().to_owned(),
     };
     let passphrase = rpassword::prompt_password("Enter passphrase: ").unwrap();
-    let mut decryptor = HelixDecryptor::from(&source, &destination, &passphrase,&CliDecryptionObserverFactory);
+    let mut decryptor = HelixDecryptor::from(
+        &source,
+        &destination,
+        &passphrase,
+        &CliDecryptionObserverFactory,
+    );
     if let Err(e) = decryptor.decrypt() {
         println!("Failed to decrypt, Reason : {}", e.message);
     }

@@ -1,5 +1,6 @@
 use std::{
     fs::{self, create_dir_all},
+    io,
     path::{Path, PathBuf},
 };
 
@@ -103,13 +104,31 @@ impl<'a> HelixEncryptor<'a> {
         for path in paths {
             let path_str = path.to_str().unwrap();
             let size = fs::metadata(path.clone()).unwrap().len();
-            let mut observer = self
-                .encryption_observer_factory
-                .create(path.clone(), size);
+            let mut observer = self.encryption_observer_factory.create(path.clone(), size);
             helix_encryptor.encrypt(path_str, &mut *observer);
+
         }
+       
         Ok(())
     }
+}
+
+fn delete_empty_directories_recursively(directory_path: &str) -> io::Result<()> {
+    if let Ok(entries) = fs::read_dir(directory_path) {
+        for entry in entries {
+            if let Ok(entry) = entry {
+                let path = entry.path();
+                if path.is_dir() {
+                    delete_empty_directories_recursively(&path.to_str().unwrap())?;
+                    if fs::read_dir(&path)?.next().is_none() {
+                        fs::remove_dir(&path)?;
+                    }
+                }
+            }
+        }
+    }
+
+    Ok(())
 }
 
 pub(crate) struct HelixDecryptor<'a> {
@@ -199,7 +218,7 @@ impl<'a> HelixDecryptor<'a> {
             self.destination,
             state.block_directory.to_str().unwrap(),
             &state.master_key,
-            self.decryption_observer_factory
+            self.decryption_observer_factory,
         );
         for file in files {
             helix_file_decryptor.decrypt(file);
