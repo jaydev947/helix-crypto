@@ -15,6 +15,7 @@ pub mod file;
 struct HelixCommand {
     #[command(subcommand)]
     subcommand: HelixSubCommand,
+
 }
 
 #[derive(Subcommand)]
@@ -34,6 +35,9 @@ struct EncryptArgs {
     ///The location of helix capsule. Defaults to current working directory
     #[arg(short, long, value_name = "DIRECTORY")]
     target: Option<PathBuf>,
+
+    #[arg(short, long)]
+    delete: bool
 }
 
 #[derive(Args)]
@@ -77,6 +81,7 @@ fn encrypt(enc_args: EncryptArgs) {
         &destination,
         &passphrase,
         &CliEncryptionObserverFactory,
+        enc_args.delete
     );
     if let Err(e) = encryptor.encrypt() {
         println!("Failed to encrypt, Reason : {}", e.message);

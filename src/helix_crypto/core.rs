@@ -33,6 +33,7 @@ pub struct HelixEncryptor<'a> {
     passphrase: &'a str,
     helix_state: Option<HelixState>,
     encryption_observer_factory: &'a dyn EncryptionObserverFactory,
+    delete: bool
 }
 
 const CAP: u32 = 1024 * 1024 * 2;
@@ -43,6 +44,7 @@ impl<'a> HelixEncryptor<'a> {
         destination: &'a str,
         passphrase: &'a str,
         encryption_observer_factory: &'a impl EncryptionObserverFactory,
+        delete: bool
     ) -> Self {
         Self {
             source,
@@ -50,6 +52,7 @@ impl<'a> HelixEncryptor<'a> {
             passphrase,
             helix_state: None,
             encryption_observer_factory,
+            delete
         }
     }
 
@@ -106,7 +109,9 @@ impl<'a> HelixEncryptor<'a> {
             let size = fs::metadata(path.clone()).unwrap().len();
             let mut observer = self.encryption_observer_factory.create(path.clone(), size);
             helix_encryptor.encrypt(path_str, &mut *observer);
-
+            if self.delete{
+                fs::remove_file(path);
+            }
         }
        
         Ok(())
@@ -234,6 +239,7 @@ fn encryption_test() {
         "../test",
         "passphrase",
         &CliEncryptionObserverFactory,
+        true,
     );
     encryptor.encrypt().unwrap();
 }
