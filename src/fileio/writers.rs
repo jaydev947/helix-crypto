@@ -1,7 +1,7 @@
 
 use std::{
-    fs::File,
-    io::{BufWriter, Write},
+    fs::{File, self},
+    io::{BufWriter, Write}, path::Path,
 };
 
 pub struct FileWriter {
@@ -37,11 +37,17 @@ pub struct ChunkWriter {
 
 impl ChunkWriter {
     pub fn from(file_path: &str) -> Self {
+
+        if let Some(parent) = Path::new(file_path).parent(){
+            let _ = fs::create_dir_all(parent);
+        }
+
         let file = File::options()
             .create(true)
             .write(true)
             .open(file_path)
             .unwrap();
+        
         let buf_writer = BufWriter::new(file);
         ChunkWriter { buf_writer }
     }
